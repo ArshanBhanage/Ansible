@@ -1,0 +1,49 @@
+---
+# Use tags to run specific plays:
+#   Deploy only:   ansible-playbook -i inventory.ini site.yml --tags deploy
+#   Undeploy only: ansible-playbook -i inventory.ini site.yml --tags undeploy
+#   Everything:    ansible-playbook -i inventory.ini site.yml
+
+- name: Deploy webserver to port 8080
+  hosts: web
+  become: true
+  tags: [deploy]
+  roles:
+    - web
+
+- name: Un-deploy webserver resources
+  hosts: web
+  become: true
+  tags: [undeploy]
+  tasks:
+    - name: Stop and disable nginx
+      service:
+        name: nginx
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Remove nginx package
+      ansible.builtin.package:
+        name: nginx
+        state: absent
+
+    - name: Remove site content directory
+      file:
+        path: /var/www/sjsu
+        state: absent
+
+    - name: Remove nginx site configs if present
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/nginx/sites-available/sjsu
+        - /etc/nginx/sites-enabled/sjsu
+
+    - name: Re-enable default site if it exists (optional)
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+      ignore_errors: true
